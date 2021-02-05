@@ -7,7 +7,7 @@ import numpy as np
 df = pd.read_csv("medical_examination.csv")
 
 # Add 'overweight' column
-df['overweight'] = list(map(lambda w, h: 1 if w/((h/100)**2) > 25 else 0, df['weight'].tolist(), df['height'].tolist()))
+df['overweight'] = list(map(lambda w, h: 1 if w/((h/100)**2) > 25 else 0, df['weight'], df['height']))
 
 # Normalize data by making 0 always good and 1 always bad. If the value of 'cholestorol' or 'gluc' is 1, make the value 0. If the value is more than 1, make the value 1.
 
@@ -36,21 +36,26 @@ def draw_cat_plot():
 	df_cat['cardio'] = df['cardio'].tolist()*6
 	df_cat = df_cat.sort_values(by=['cardio'])
 	print(df_cat)
-	df_cat = df_cat.head(210126).groupby(['variable']).sum().append(df_cat.tail(209874).groupby(['variable']).sum())
+	totalrows = df_cat.shape[0]
+	cardioindex = df_cat['cardio'].to_list().index(1)
+	df_cat = df_cat.head(cardioindex).groupby(['variable']).sum().append(df_cat.tail(totalrows-cardioindex).groupby(['variable']).sum())
 	df_cat['cardio'] = list(map(lambda x: int(x if x == 0 else x/abs(x)), df_cat['cardio']))
 	df_cat['name'] = df_cat.index.values
 	df_cat['amount'] = df_cat['value']
 	df_cat['value'] = [1 for thing in df_cat['name']]
 	df_cat2 = df_cat.copy()
 	df_cat2['value'] = [0 for thing in df_cat2['name']]
-	df_cat2['amount'] = [35021-df_cat['amount'][i] if df_cat['cardio'][i] == 0 else 34979-df_cat['amount'][i] for i in range(len(df_cat['amount']))]
+	df_cat2['amount'] = [int(cardioindex/6)-df_cat['amount'][i] if df_cat['cardio'][i] == 0 else int((totalrows-cardioindex)/6)-df_cat['amount'][i] for i in range(len(df_cat['amount']))]
 	df_cat = df_cat.append(df_cat2)
+	df_cat['variable'] = df_cat['name']
+	df_cat['total'] = df_cat['amount']
 	print(df_cat)
 
 
     # Draw the catplot with 'sns.catplot()'
 
-	fig = sns.catplot(data = df_cat, x = 'name', y = 'amount', col = 'cardio', kind = 'bar', hue = 'value')
+	fig = sns.catplot(data = df_cat, x = 'variable', y = 'total', col = 'cardio', kind = 'bar', hue = 'value')
+	fig = fig.fig
 
 
     # Do not modify the next two lines
@@ -65,21 +70,23 @@ def draw_heat_map():
 	df_heat['ap_lo'] = list(map(lambda x, y: None if x > y else x, df_heat['ap_lo'], df_heat['ap_hi']))
 	toProcess = ['height', 'weight']
 	for thing in toProcess:
-		df_heat[thing] = list(map(lambda x: None if x < df_heat[thing].quantile(0.025) or x > df_heat[thing].quantile(0.975) else x, df_heat[thing]))
+		low, high = df_heat[thing].quantile(0.025), df_heat[thing].quantile(0.975)
+		df_heat[thing] = list(map(lambda x: None if x < low or x > high else float(x), df_heat[thing]))
+	df_heat.dropna(inplace = True)
 
 
     # Calculate the correlation matrix
-	corr = df_heat.corr().round(2)
+	corr = df_heat.corr().round(1)
 
     # Generate a mask for the upper triangle
 	mask = np.array([[(x>=y) for x in range(corr.shape[0])] for y in range(corr.shape[0])])
 
     # Set up the matplotlib figure
-	fig = plt.figure()
+	fig, ax = plt.subplots(figsize=(7,7))
 
     # Draw the heatmap with 'sns.heatmap()'
 
-	sns.heatmap(corr, annot = True, mask = mask)
+	sns.heatmap(corr, annot = True, mask = mask, fmt = '.1f')
 
 
     # Do not modify the next two lines
